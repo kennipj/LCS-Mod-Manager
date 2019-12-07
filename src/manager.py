@@ -340,6 +340,8 @@ class ModManager(tk.Tk):
         self.title('lolcustomskin - Mod Manager')
         self.geometry('650x350+500+500')
 
+        self.MakeDirs()
+
         self.entry_panel = EntryPanel(self)
         self.entry_panel.grid(row=0, column=0)
 
@@ -365,6 +367,10 @@ class ModManager(tk.Tk):
         self.CheckDirs()
 
         self.after(100, self.QueryProcess)
+
+    def MakeDirs(self):
+        os.makedirs('overlay/', exist_ok=True)
+        os.makedirs('mods/', exist_ok=True)
 
     def QueryProcess(self):
         if self.lcs_p_running:
