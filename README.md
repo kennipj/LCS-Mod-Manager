@@ -5,4 +5,4 @@ Made in collaboration with [@moonshadow565](https://github.com/moonshadow565)
 
 Release version coming soon.
 
-![Image of GUI](https://imgur.com/Kgxu1AE.png)
+![Image of GUI](https://i.imgur.com/k4OLWXk.png)
