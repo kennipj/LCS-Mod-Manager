@@ -442,7 +442,8 @@ class ModManager(tk.Tk):
 
     def CheckMod(self, asset_path, full_path):
         if full_path.split('.')[-1].lower() == 'client' or full_path.split('.')[-1].lower() == 'wad':
-            wad = Wad.create(vals[1])
+            return #not yet implemented
+            wad = Wad.create(full_path)
             for key in wad.entries.keys():
                 if key in self.processed:
                     self.processed[asset_path].append(path.basename(wad.wadpath))
