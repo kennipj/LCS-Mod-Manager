@@ -1,5 +1,6 @@
 import atexit
 import os
+import zipfile
 from shutil import rmtree, copy, copytree
 import tkinter as tk
 from tkinter import filedialog
@@ -12,6 +13,7 @@ VERSION = 1.0
 
 clean_string = lambda p: p.replace('\\', '/')
 
+MSG_ERROR_DELETE = 0
 MSG_ERROR_CONFLICT = 1
 MSG_ERROR_OVERLAYDIR = 2
 MSG_ERROR_GAMEDIR = 3
@@ -98,6 +100,7 @@ class MessagePanel(tk.Frame):
         self.label = tk.Label(self, text='')
         self.label.pack(pady=10)
         self.messages = {
+            MSG_ERROR_DELETE: ['Unable to fully delete mod. Subdirectory open in another window.', 'red', True, False],
             MSG_ERROR_CONFLICT: ['You have asset conflicts, you must disable or remove conflicting mods.', 'red', False, False],
             MSG_ERROR_OVERLAYDIR: ['Invalid overlay directory, please browse to a valid directory', 'red', False, False],
             MSG_ERROR_GAMEDIR: ['Invalid game directory, please browse to target League of Legends.exe', 'red', False, False],
@@ -113,15 +116,17 @@ class MessagePanel(tk.Frame):
             MSG_GOOD_STARTED_LCS: ['Successfully launched lolcustomskin', 'green', True, False],
             MSG_GOOD_DEFAULT: ['Everything OK!', 'green', True, True],
         }
-        self.errors = set([MSG_ERROR_CONFLICT, MSG_ERROR_OVERLAYDIR, MSG_ERROR_GAMEDIR, MSG_ERROR_MOD_NAME])
+        self.errors = set([MSG_ERROR_DELETE, MSG_ERROR_CONFLICT,
+                          MSG_ERROR_OVERLAYDIR, MSG_ERROR_GAMEDIR,
+                          MSG_ERROR_MOD_NAME, MSG_ERROR_STARTING_LCS,
+                          MSG_ERROR_CLOSING_LCS])
 
     def FlushGoodMsg(self):
         for prio, msg in self.messages.items():
-            if msg[2] and prio != MSG_GOOD_DEFAULT:
+            if msg[2] and prio != MSG_GOOD_DEFAULT and prio not in self.errors:
                 msg[3] = False
 
     def UpdateMsg(self, custom=False):
-        kas = sorted(list(self.messages.items()), key=lambda x:x[0], reverse=False)
         for prio, msg in self.messages.items():
             if msg[3]:
                 if custom:
@@ -137,8 +142,7 @@ class MessagePanel(tk.Frame):
             self.master.button_panel.start_lolcustomskin.config(state=tk.DISABLED)
         else:
             self.master.button_panel.apply_mods.config(state=tk.NORMAL)
-            if not self.master.lcs_p_running:
-                self.master.button_panel.start_lolcustomskin.config(state=tk.NORMAL)
+            self.master.button_panel.start_lolcustomskin.config(state=tk.NORMAL)
 
     def AddMsg(self, id_, custom=False):
         self.FlushGoodMsg()
@@ -167,8 +171,7 @@ class ModListbox(tk.Frame):
 
     def UpdateMods(self, mods):
         self.list_box.delete(0, 'end')
-        for val in mods.values(): 
-            name = path.basename(val[1].split('/')[1])
+        for name in mods.keys():
             self.list_box.insert(0, name)
 
     def GetIndex(self, val):
@@ -206,13 +209,13 @@ class ModFrame(tk.Frame):
         self.master = master
         try:
             with open('disabled.txt', 'r') as f:
-                self.disabled_mods = {int(k):None for k in f.readlines()}
+                self.disabled_mods = {k.strip():None for k in f.readlines()}
         except IOError:
             open('disabled.txt', 'w').close()
             self.disabled_mods = {}
 
-        self.enabled_mods = {clean_string(v[0]).split('/')[1]:(k, clean_string(v[0])) for k, v in master.mods.items() if k not in self.disabled_mods}
-        self.disabled_mods = {clean_string(v[0]).split('/')[1]:(k, clean_string(v[0])) for k, v in master.mods.items() if k in self.disabled_mods}
+        self.enabled_mods = {k: v for k, v in master.mods.items() if k not in self.disabled_mods}
+        self.disabled_mods = {k: v for k, v in master.mods.items() if k in self.disabled_mods}
 
         self.enabled_box = ModListbox(self, self.enabled_mods, 'Enabled mods')
         self.enabled_box.pack(side=tk.LEFT)
@@ -225,9 +228,9 @@ class ModFrame(tk.Frame):
 
     def RefreshMods(self):
         #TODO: Restructure disabled mod storing
-        disabled_keys = set([val[0] for val in self.disabled_mods.values()])
-        self.enabled_mods = {clean_string(v[0]).split('/')[1]:(k, clean_string(v[0])) for k, v in self.master.mods.items() if v[1] not in disabled_keys}
-        self.disabled_mods = {clean_string(v[0]).split('/')[1]:(k, clean_string(v[0])) for k, v in self.master.mods.items() if v[1] in disabled_keys}
+        #disabled_keys = set([val[0] for val in self.disabled_mods.values()])
+        self.enabled_mods = {k: v for k, v in self.master.mods.items() if k not in self.disabled_mods}
+        self.disabled_mods = {k: v for k, v in self.master.mods.items() if k in self.disabled_mods}
         self.enabled_box.UpdateMods(self.enabled_mods)
         self.disabled_box.UpdateMods(self.disabled_mods)
 
@@ -241,6 +244,8 @@ class ButtonPanel(tk.Frame):
         self.refresh_mods.pack(pady=1)
         self.add_mod = tk.Button(self, text='Add Mod Folder', command=self.AskDir, width=15)
         self.add_mod.pack(pady=1)
+        self.extract_mods = tk.Button(self, text='Extract zip', command=self.AskZip, width=15)
+        self.extract_mods.pack(pady=1)
         self.delete_mod = tk.Button(self, text='Delete Mod(s)', command=self.RemoveMods, width=15)
         self.delete_mod.pack(pady=1)
         self.start_lolcustomskin = tk.Button(self, text='Launch lolcustomskin', command=self.ToggleLCS,
@@ -277,7 +282,7 @@ class ButtonPanel(tk.Frame):
                 self.master.msg_panel.AddMsg(MSG_ERROR_STARTING_LCS)
     
     def RecheckMods(self):
-        self.master.mods = ModEntry.create_list(self.master.modsdir)
+        self.master.GetMods()
         self.master.mod_panel.RefreshMods()
         self.master.CheckMods()
 
@@ -285,6 +290,17 @@ class ButtonPanel(tk.Frame):
         dir_ = tk.filedialog.askdirectory(title='Select folder')
         try:
             copytree(dir_, 'mods/' + path.basename(dir_))
+            self.RecheckMods()
+        except FileExistsError:
+            self.master.msg_panel.AddMsg(MSG_ERROR_MOD_NAME)
+        except FileNotFoundError:
+            pass
+
+    def AskZip(self):
+        zip_path = tk.filedialog.askopenfilename(title='Select zip file')
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(self.master.modsdir)
             self.RecheckMods()
         except FileExistsError:
             self.master.msg_panel.AddMsg(MSG_ERROR_MOD_NAME)
@@ -320,11 +336,17 @@ class ButtonPanel(tk.Frame):
         to_remove = []
         for idx in mod_list.curselection():
             name = mod_list.get(idx)
-            to_remove.append((mods[name][0], idx))
-            if mods[name][1].split('/')[-1] == 'client' or mods[name][1][1].split('/')[-1] == 'wad':
-                os.remove(mods[name][1])
+            if path.isdir('mods/' + name):
+                try:
+                    rmtree('mods/' + name)
+                    #self.master.msg_panel.RemoveMsg(MSG_ERROR_DELETE)
+                except OSError:
+                    pass
+                    #self.master.msg_panel.AddMsg(MSG_ERROR_DELETE, custom=f'Unable to fully delete {name}. Subdirectory open in another window.')
+                    #continue
             else:
-                rmtree('mods/' + name)
+                os.remove('mods/' + name)
+            to_remove.append((name, idx))
             del mods[name]
             self.master.msg_panel.AddMsg(MSG_GOOD_DELETE, custom=f'Successfully deleted {name}')
 
@@ -358,7 +380,7 @@ class ModManager(tk.Tk):
         self.modsdir = 'mods/'
         self.gamedir = self.entry_panel['gamedir']
         self.overlaydir = self.entry_panel['overlaydir']
-        self.mods = ModEntry.create_list(self.modsdir)
+        self.GetMods()
 
         self.mod_panel = ModFrame(self)
         self.mod_panel.grid(row=2, column=0)
@@ -368,6 +390,10 @@ class ModManager(tk.Tk):
         self.CheckMods()
         self.CheckDirs()
         self.QueryProcess()
+
+    def GetMods(self):
+        mods = [dir_ for dir_ in os.listdir(self.modsdir) if path.isdir(path.join(self.modsdir, dir_))]
+        self.mods = {modpath:ModEntry.create_list(self.modsdir + modpath) for modpath in mods}
 
     def MakeDirs(self):
         os.makedirs('overlay/', exist_ok=True)
@@ -412,25 +438,28 @@ class ModManager(tk.Tk):
                 f.write('\n' + default_overlaydir)
                 self.entry_panel['overlaydir'] = default_overlaydir
 
-
-    def CheckMods(self, loaded_mods=False):
+    def CheckMods(self):
+        self.processed = {}
+        for key, values in self.mod_panel.enabled_mods.items():
+            for val in values.values():
+                asset_path = '/'.join(clean_string(val[0]).split('/')[2:])
+                self.CheckMod(asset_path, key)
+        conflicted_mods = {}
         conflicts = False
-        if loaded_mods:
-            for key, vals in loaded_mods.items():
-                mod = {key:vals}
-                self.CheckMod(key, vals)
-                self.mods = {**mod, **self.mods}
-        else:
-            self.processed = {}
-            for vals in self.mod_panel.enabled_mods.values():
-                asset_path = '/'.join(vals[1].split('/')[2:])
-                self.CheckMod(asset_path, vals[1])
         for key, val in self.processed.items():
-            self.mod_panel.enabled_box.SetColor(val[0], 'white')
-            if len(val) > 1:
-                for asset in val:
+            for name in val:
+                if len(val) > 1:
                     conflicts = True
-                    self.mod_panel.enabled_box.SetColor(asset, 'red')
+                    conflicted_mods[name] = True
+                elif name not in conflicted_mods:
+                    conflicted_mods[name] = False
+
+        for name, conflict in conflicted_mods.items():
+            if conflict:
+                self.mod_panel.enabled_box.SetColor(name, 'red')
+            else:
+                self.mod_panel.enabled_box.SetColor(name, 'white')
+
         if conflicts:
             self.msg_panel.AddMsg(MSG_ERROR_CONFLICT)
         else:
@@ -438,24 +467,15 @@ class ModManager(tk.Tk):
             self.msg_panel.RemoveMsg(MSG_ERROR_CONFLICT)
 
 
-    def CheckMod(self, asset_path, full_path):
-        if full_path.split('.')[-1].lower() == 'client' or full_path.split('.')[-1].lower() == 'wad':
-            return #not yet implemented
-            wad = Wad.create(full_path)
-            for key in wad.entries.keys():
-                if key in self.processed:
-                    self.processed[asset_path].append(path.basename(wad.wadpath))
-                else:
-                    self.processed[asset_path] = [path.basename(wad.wadpath)]
+    def CheckMod(self, asset_path, name):
+        if asset_path in self.processed:
+            self.processed[asset_path].append(name)
         else:
-            if asset_path in self.processed:
-                self.processed[asset_path].append(full_path.split('/')[1])
-            else:
-                self.processed[asset_path] = [full_path.split('/')[1]]
+            self.processed[asset_path] = [name]
 
     def SaveDisabled(self):
         with open('disabled.txt', 'w') as f:
-            f.writelines(str(v[0]) + '\n' for k, v in self.mod_panel.disabled_mods.items())
+            f.writelines(k + '\n' for k in self.mod_panel.disabled_mods.keys())
 
 
 if __name__ == '__main__':
