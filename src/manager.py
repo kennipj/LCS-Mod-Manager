@@ -269,7 +269,7 @@ class ButtonPanel(tk.Frame):
                 self.master.msg_panel.AddMsg(MSG_ERROR_CLOSING_LCS)
         else:
             try:
-                self.master.lcs_p = subprocess.Popen(['lolcustomskin.exe',  f'{self.master.overlaydir}/'])
+                self.master.lcs_p = Popen(['lolcustomskin.exe',  f'{self.master.overlaydir}/'])
                 self.master.msg_panel.RemoveMsg(MSG_ERROR_STARTING_LCS)
                 self.master.msg_panel.AddMsg(MSG_GOOD_STARTED_LCS)
                 self.master.lcs_p_running = True
