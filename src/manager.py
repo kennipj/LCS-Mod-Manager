@@ -1,11 +1,13 @@
 import atexit
 import os
-import shutil
+from shutil import rmtree, copy, copytree
 import tkinter as tk
 from subprocess import Popen
 from os import path
-from tkinter import filedialog, Tk
 from wadmod import ModEntry, Wad, ModOverlay, VerifyGameDir
+
+
+VERSION = 1.0
 
 clean_string = lambda p: p.replace('\\', '/')
 
@@ -23,7 +25,6 @@ MSG_GOOD_STARTED_LCS = 42
 MSG_GOOD_ADD = 43
 MSG_GOOD_DELETE = 44
 MSG_GOOD_DEFAULT = 99
-
 
 class LabelEntry(tk.Frame):
     def __init__(self, master, text, arg):
@@ -261,16 +262,18 @@ class ButtonPanel(tk.Frame):
                 self.master.msg_panel.RemoveMsg(MSG_ERROR_CLOSING_LCS)
                 self.master.msg_panel.AddMsg(MSG_GOOD_STOPPED_LCS)
                 self.master.lcs_p_running = False
+                self.master.QueryProcess()
                 self.start_lolcustomskin.config(text='Launch lolcustomskin', state=tk.NORMAL)
             except:
                 self.master.msg_panel.AddMsg(MSG_ERROR_CLOSING_LCS)
         else:
             try:
-                self.master.lcs_p = Popen(f'lolcustomskin.exe {self.master.overlaydir}/')
+                self.master.lcs_p = subprocess.Popen(['lolcustomskin.exe',  f'{self.master.overlaydir}/'])
                 self.master.msg_panel.RemoveMsg(MSG_ERROR_STARTING_LCS)
                 self.master.msg_panel.AddMsg(MSG_GOOD_STARTED_LCS)
                 self.master.lcs_p_running = True
-                self.start_lolcustomskin.config(state=tk.DISABLED)
+                self.master.QueryProcess()
+                self.start_lolcustomskin.config(text='Stop lolcustomskin', state=tk.NORMAL)
             except:
                 self.master.msg_panel.AddMsg(MSG_ERROR_STARTING_LCS)
     
@@ -282,7 +285,7 @@ class ButtonPanel(tk.Frame):
     def AskDir(self):
         dir_ = tk.filedialog.askdirectory(title='Select folder')
         try:
-            shutil.copytree(dir_, 'mods/' + path.basename(dir_))
+            copytree(dir_, 'mods/' + path.basename(dir_))
             self.RecheckMods()
         except FileExistsError:
             self.master.msg_panel.AddMsg(MSG_ERROR_MOD_NAME)
@@ -292,7 +295,7 @@ class ButtonPanel(tk.Frame):
     def AskFile(self):
         file_ = tk.filedialog.askopenfilename(title='Select .wad file')
         try:
-            shutil.copy(file_, 'mods/' + path.basename(file_))
+            copy(file_, 'mods/' + path.basename(file_))
             self.RecheckMods()
         except FileExistsError:
             self.master.msg_panel.AddMsg(MSG_ERROR_MOD_NAME)
@@ -303,7 +306,7 @@ class ButtonPanel(tk.Frame):
         #TODO: Check if mod is valid
         gamedir = VerifyGameDir(self.master.gamedir)
         if gamedir and self.master.overlaydir:
-            ModOverlay(self.master.gamedir, self.master.modsdir, self.master.overlaydir).force_write()
+            ModOverlay(self.master.gamedir, self.master.modsdir, self.master.overlaydir, self.master.mod_panel.disabled_mods).force_write()
         self.master.msg_panel.AddMsg(MSG_GOOD_APPLY)
 
     def RemoveMods(self):
@@ -322,7 +325,7 @@ class ButtonPanel(tk.Frame):
             if mods[name][1].split('/')[-1] == 'client' or mods[name][1][1].split('/')[-1] == 'wad':
                 os.remove(mods[name][1])
             else:
-                shutil.rmtree('mods/' + name)
+                rmtree('mods/' + name)
             del mods[name]
             self.master.msg_panel.AddMsg(MSG_GOOD_DELETE, custom=f'Successfully deleted {name}')
 
@@ -337,7 +340,7 @@ class ButtonPanel(tk.Frame):
 class ModManager(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title('lolcustomskin - Mod Manager')
+        self.title(f'lolcustomskin - Mod Manager v{VERSION}')
         self.geometry('650x350+500+500')
 
         self.MakeDirs()
@@ -366,8 +369,6 @@ class ModManager(tk.Tk):
         self.CheckMods()
         self.CheckDirs()
 
-        self.after(100, self.QueryProcess)
-
     def MakeDirs(self):
         os.makedirs('overlay/', exist_ok=True)
         os.makedirs('mods/', exist_ok=True)
@@ -376,11 +377,12 @@ class ModManager(tk.Tk):
         if self.lcs_p_running:
             if self.lcs_p.poll() is not None:
                 self.msg_panel.AddMsg(MSG_DEFAULT_CUSTOM, 'lolcustomskin has terminated.')
-                #self.button_panel.start_lolcustomskin.config(text='Launch lolcustomskin', state=tk.NORMAL)
-                self.lcs_p_running = False
+                self.start_lolcustomskin.config(text='Launch lolcustomskin', state=tk.NORMAL)
+                self.master.lcs_p_running = False
             else:
                 self.msg_panel.AddMsg(MSG_DEFAULT_CUSTOM, 'lolcustomskin is running...')
         self.after(100, self.QueryProcess)
+        
 
 
     def CheckDirs(self, *args):

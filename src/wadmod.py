@@ -3,13 +3,11 @@ import shutil
 import hashlib
 import os
 import pickle
-from itertools import groupby
 from os import path
-from typing import Dict, IO, ByteString, List, Tuple, Union, Generator, NamedTuple, Type
-from struct import Struct, calcsize, unpack
+from typing import Dict, IO, Tuple, NamedTuple
+from struct import Struct
 from glob import glob
 from glob import iglob
-from collections import Counter
 from xxhash import xxh64_intdigest
 from pathlib import Path
 
@@ -185,10 +183,11 @@ class Wad(NamedTuple):
                 entry.write_data(outf)
 
 class ModOverlay:    
-    def __init__(self, gamedir: str, modsdir: str, overlaydir: str):
+    def __init__(self, gamedir: str, modsdir: str, overlaydir: str, disabled_mods: Dict[str, Tuple[int, str]]):
         self.gamedir = gamedir
         self.modsdir = modsdir
         self.overlaydir = overlaydir
+        self.disabled_mods = disabled_mods
         self.gamedir_timestamp = 0
         self.modsdir_timestamp = 0
         self.modified_dirty = False
@@ -230,7 +229,7 @@ class ModOverlay:
     def rebuild_mod_index(self):
         self.mods.clear()
         for modpath in glob(f"{self.modsdir}/*"):
-            if path.isdir(modpath):
+            if path.isdir(modpath) and path.basename(modpath) not in self.disabled_mods:
                 self.mods[modpath] = ModEntry.create_list(modpath)
         self.modsdir_timestamp = modtime(self.modsdir)
         self.modified_dirty = True
