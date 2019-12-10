@@ -2,6 +2,7 @@ import atexit
 import os
 from shutil import rmtree, copy, copytree
 import tkinter as tk
+from tkinter import filedialog
 from subprocess import Popen
 from os import path
 from wadmod import ModEntry, Wad, ModOverlay, VerifyGameDir
