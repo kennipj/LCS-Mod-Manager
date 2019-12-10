@@ -3,6 +3,6 @@ GUI Mod Manager for [lolcustomskin](https://github.com/moonshadow565/lolcustomsk
 
 Made in collaboration with [@moonshadow565](https://github.com/moonshadow565)
 
-Release version coming soon.
+Please see the [Wiki](https://github.com/Faintedsup/LCS-Mod-Manager/wiki) on how to use this program.
 
-![Image of GUI](https://i.imgur.com/k4OLWXk.png)
+![Image of GUI](https://i.imgur.com/jfefu2r.png)
