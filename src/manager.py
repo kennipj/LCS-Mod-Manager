@@ -263,7 +263,6 @@ class ButtonPanel(tk.Frame):
                 self.master.msg_panel.RemoveMsg(MSG_ERROR_CLOSING_LCS)
                 self.master.msg_panel.AddMsg(MSG_GOOD_STOPPED_LCS)
                 self.master.lcs_p_running = False
-                self.master.QueryProcess()
                 self.start_lolcustomskin.config(text='Launch lolcustomskin', state=tk.NORMAL)
             except:
                 self.master.msg_panel.AddMsg(MSG_ERROR_CLOSING_LCS)
@@ -273,7 +272,6 @@ class ButtonPanel(tk.Frame):
                 self.master.msg_panel.RemoveMsg(MSG_ERROR_STARTING_LCS)
                 self.master.msg_panel.AddMsg(MSG_GOOD_STARTED_LCS)
                 self.master.lcs_p_running = True
-                self.master.QueryProcess()
                 self.start_lolcustomskin.config(text='Stop lolcustomskin', state=tk.NORMAL)
             except:
                 self.master.msg_panel.AddMsg(MSG_ERROR_STARTING_LCS)
@@ -369,6 +367,7 @@ class ModManager(tk.Tk):
 
         self.CheckMods()
         self.CheckDirs()
+        self.QueryProcess()
 
     def MakeDirs(self):
         os.makedirs('overlay/', exist_ok=True)
@@ -378,13 +377,12 @@ class ModManager(tk.Tk):
         if self.lcs_p_running:
             if self.lcs_p.poll() is not None:
                 self.msg_panel.AddMsg(MSG_DEFAULT_CUSTOM, 'lolcustomskin has terminated.')
-                self.start_lolcustomskin.config(text='Launch lolcustomskin', state=tk.NORMAL)
-                self.master.lcs_p_running = False
+                self.button_panel.start_lolcustomskin.config(text='Launch lolcustomskin', state=tk.NORMAL)
+                self.lcs_p_running = False
             else:
                 self.msg_panel.AddMsg(MSG_DEFAULT_CUSTOM, 'lolcustomskin is running...')
         self.after(100, self.QueryProcess)
         
-
 
     def CheckDirs(self, *args):
         valid_game_dir = bool(VerifyGameDir(self.entry_panel['gamedir']))
